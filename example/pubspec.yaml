@@ -10,8 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   applovin_max: any
-  nefta_sdk_flutter:
-    path: ../
+  nefta_sdk_flutter: any
 
   cupertino_icons: ^1.0.8
 

@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:applovin_max/applovin_max.dart';
 
-import 'Insights.dart';
+import 'insights.dart';
 
 export 'package:nefta_sdk_flutter/insights.dart';
 export 'package:nefta_sdk_flutter/game_event.dart';
