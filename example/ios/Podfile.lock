@@ -1,0 +1,45 @@
+PODS:
+  - applovin_max (4.5.1):
+    - AppLovinSDK (= 13.3.1)
+    - Flutter
+  - AppLovinSDK (13.3.1)
+  - Flutter (1.0.0)
+  - integration_test (0.0.1):
+    - Flutter
+  - nefta_sdk_flutter (4.3.0):
+    - Flutter
+    - NeftaSDK (= 4.3.0)
+  - NeftaSDK (4.3.0)
+
+DEPENDENCIES:
+  - applovin_max (from `.symlinks/plugins/applovin_max/ios`)
+  - Flutter (from `Flutter`)
+  - integration_test (from `.symlinks/plugins/integration_test/ios`)
+  - nefta_sdk_flutter (from `.symlinks/plugins/nefta_sdk_flutter/ios`)
+
+SPEC REPOS:
+  trunk:
+    - AppLovinSDK
+    - NeftaSDK
+
+EXTERNAL SOURCES:
+  applovin_max:
+    :path: ".symlinks/plugins/applovin_max/ios"
+  Flutter:
+    :path: Flutter
+  integration_test:
+    :path: ".symlinks/plugins/integration_test/ios"
+  nefta_sdk_flutter:
+    :path: ".symlinks/plugins/nefta_sdk_flutter/ios"
+
+SPEC CHECKSUMS:
+  applovin_max: 6fc471df0a61050df634e51865356620d2b5050b
+  AppLovinSDK: 5075837afdee4fb429121799b8cbcc5918ef3a23
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
+  nefta_sdk_flutter: dc94a90991aabc3f8ef22928f6bd7a10b0c0338c
+  NeftaSDK: d74f5a580ac7b726152e6c53a911467ac05d5408
+
+PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
+
+COCOAPODS: 1.16.2

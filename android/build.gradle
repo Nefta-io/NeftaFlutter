@@ -1,0 +1,24 @@
+// Generated file. Do not edit.
+
+allprojects {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "com.nefta.sdk"
+    compileSdk = 35
+    defaultConfig {
+        minSdk = 21
+        targetSdk = 35
+    }
+
+    dependencies {
+        implementation 'com.nefta:nefta-sdk:4.3.0'
+    }
+}
