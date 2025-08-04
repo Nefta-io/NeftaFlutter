@@ -1,7 +1,7 @@
 name: nefta_sdk_flutter_example
 description: "Demonstrates how to use the nefta_sdk_flutter plugin."
 publish_to: 'none'
-version: 4.3.0
+version: 4.3.1
 
 environment:
   sdk: ^3.8.1

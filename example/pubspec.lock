@@ -237,10 +237,11 @@ packages:
   nefta_sdk_flutter:
     dependency: "direct main"
     description:
-      path: ".."
-      relative: true
-    source: path
-    version: "4.3.0"
+      name: nefta_sdk_flutter
+      sha256: c81d583684b30a99d03f7036f4484ed2420e995ba49ba8a30f9ffbde8fc2673d
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.3.1"
   path:
     dependency: transitive
     description:

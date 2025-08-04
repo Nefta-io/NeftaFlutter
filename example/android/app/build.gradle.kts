@@ -22,7 +22,7 @@ android {
         applicationId = "com.nefta.fluttermax"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 6
+        versionCode = 8
         versionName = "4.3.0"
     }
 
