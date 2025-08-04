@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'nefta_sdk_flutter'
-  s.version          = '4.3.1'
+  s.version          = '4.3.2'
   s.summary          = 'Nefta Flutter Plugin.'
   s.description      = <<-DESC
 Nefta Flutter Plugin.

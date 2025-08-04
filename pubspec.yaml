@@ -1,6 +1,6 @@
 name: nefta_sdk_flutter
 description: "Nefta SDK for flutter projects."
-version: 4.3.1
+version: 4.3.2
 homepage: "https://nefta.io"
 
 environment:
