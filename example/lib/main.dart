@@ -39,6 +39,7 @@ class MainState extends State<MainPage> {
   static final String _defaultBannerAdUnitId = Platform.isAndroid ? "d3d61616c344d2b4" : "78161f678bc0c46f";
   static final String _defaultInterstitialAdUnitId = Platform.isAndroid ? "0822634ec9c39d78" : "5e11b1838778c517";
   static final String _defaultRewardedAdUnitId = Platform.isAndroid ? "3d7ef05a78cf8615" : "ad9b024164e61c00";
+  static final String _dynamicRewardedAdUnitId = Platform.isAndroid ? "c0c516310b8c7c04" : "c068edf12c4282a6";
 
   static final List<String> _adUnits = Platform.isAndroid ?
       ["0822634ec9c39d78", "084edff9524b52ec", "3d7ef05a78cf8615", "c0c516310b8c7c04" ] :
@@ -46,16 +47,19 @@ class MainState extends State<MainPage> {
 
   String _bannerAdUnitId = _defaultBannerAdUnitId;
   String _interstitialAdUnitId = _defaultInterstitialAdUnitId;
-  String _rewardedAdUnitId = _defaultRewardedAdUnitId;
 
   String _statusText = "Status";
   bool _isBannerMounted = false;
+
   AdInsight? _interstitialInsight;
   AdState _interstitialState = AdState.Idle;
   int _interstitialRetryAttempt = 0;
-  AdInsight? _rewardedInsight;
-  AdState _rewardedState = AdState.Idle;
-  int _rewardedRetryAttempt = 0;
+
+  bool _isRewardedLoading = false;
+  AdInsight? _dynamicRewardedInsight;
+  AdState _defaultRewardedState = AdState.Idle;
+  AdState _dynamicRewardedState = AdState.Idle;
+  int _dynamicRewardedRetryAttempt = 0;
 
   @override
   void initState() {
@@ -169,27 +173,54 @@ class MainState extends State<MainPage> {
   void initializeRewarded() {
     AppLovinMAX.setRewardedAdListener(RewardedAdListener(
         onAdLoadedCallback: (ad) {
-          Nefta.onExternalMediationRequestLoaded(AdType.Rewarded, _rewardedInsight, ad);
+          if (ad.adUnitId == _dynamicRewardedAdUnitId) {
+            Nefta.onExternalMediationRequestLoaded(AdType.Rewarded, _dynamicRewardedInsight, ad);
 
-          log("Rewarded ad loaded from ${ad.networkName}");
-          _rewardedRetryAttempt = 0;
-          setState(() {
-            _rewardedState = AdState.Ready;
-          });
+            log("Loaded Dynamic Rewarded ${ad.adUnitId} at ${ad.revenue}");
+            _dynamicRewardedRetryAttempt = 0;
+            setState(() {
+              _dynamicRewardedState = AdState.Ready;
+            });
+          } else {
+            Nefta.onExternalMediationRequestLoaded(AdType.Rewarded, null, ad);
+
+            log("Loaded Default Rewarded ${ad.adUnitId} at ${ad.revenue}");
+            setState(() {
+              _defaultRewardedState = AdState.Ready;
+            });
+          }
+
         },
         onAdLoadFailedCallback: (adUnitId, error) {
-          Nefta.onExternalMediationRequestFailed(AdType.Rewarded, _rewardedInsight, adUnitId, error);
+          if (adUnitId == _dynamicRewardedAdUnitId) {
+            Nefta.onExternalMediationRequestFailed(AdType.Rewarded, _dynamicRewardedInsight, adUnitId, error);
 
-          _rewardedRetryAttempt = _rewardedRetryAttempt + 1;
-          if (_rewardedRetryAttempt > 6) return;
-          int retryDelay = pow(2, min(6, _rewardedRetryAttempt)).toInt();
-          log("Rewarded ad failed to load with code ${error.code.toString()} - retrying in ${retryDelay.toString()}s");
+            _dynamicRewardedRetryAttempt = _dynamicRewardedRetryAttempt + 1;
+            int retryDelay = pow(2, min(6, _dynamicRewardedRetryAttempt)).toInt();
+            log("Load failed Dynamic Rewarded code ${error.code.toString()} - retrying in ${retryDelay.toString()}s");
 
-          Future.delayed(Duration(milliseconds: retryDelay * 1000), () {
-            if (_rewardedState == AdState.Loading) {
-              getRewardedInsightAndLoad();
+            Future.delayed(Duration(milliseconds: retryDelay * 1000), () {
+              if (_isRewardedLoading) {
+                getRewardedInsightAndLoad();
+              } else {
+                setState(() {
+                  _dynamicRewardedState = AdState.Idle;
+                });
+              }
+            });
+          } else {
+            Nefta.onExternalMediationRequestFailed(AdType.Rewarded, _dynamicRewardedInsight, adUnitId, error);
+
+            log("Load failed Dynamic Rewarded code ${error.code.toString()}");
+
+            if (_isRewardedLoading) {
+              loadDefaultRewarded();
+            } else {
+              setState(() {
+                _defaultRewardedState = AdState.Idle;
+              });
             }
-          });
+          }
         },
         onAdDisplayedCallback: (ad) {
           log("onAdDisplayedCallback");
@@ -275,46 +306,63 @@ class MainState extends State<MainPage> {
     });
   }
 
-  void getRewardedInsightAndLoad() {
-    Nefta.getInsights(Insights.REWARDED, loadRewarded, 5);
-  }
-
-  void loadRewarded(Insights insights) {
-    _rewardedAdUnitId = _defaultRewardedAdUnitId;
-
-    _rewardedInsight = insights.rewarded;
-    if (_rewardedInsight != null) {
-      if (_rewardedInsight!.adUnit != null && _rewardedInsight!.adUnit!.isNotEmpty) {
-        _rewardedAdUnitId = _rewardedInsight!.adUnit!;
-      }
-    }
-
-    AppLovinMAX.setRewardedAdExtraParameter(_rewardedAdUnitId, "disable_auto_retries", "true");
-    AppLovinMAX.loadRewardedAd(_rewardedAdUnitId);
-  }
-
-  void onRewardedLoadClick() {
-    if (_rewardedState == AdState.Loading) {
-      setState(() {
-        _rewardedState = AdState.Idle;
-      });
-    } else {
+  void startRewardedLoading() {
+    if (_dynamicRewardedState == AdState.Idle) {
       getRewardedInsightAndLoad();
-      setState(() {
-        _rewardedState = AdState.Loading;
-      });
-      addDemoIntegrationExampleEvent(2);
     }
+    if (_defaultRewardedState == AdState.Idle) {
+      loadDefaultRewarded();
+    }
+  }
+
+  void getRewardedInsightAndLoad() {
+    setState(() {
+      _dynamicRewardedState = AdState.Loading;
+    });
+    Nefta.getInsights(Insights.REWARDED, loadDynamicRewarded, 5);
+  }
+
+  void loadDynamicRewarded(Insights insights) {
+    if (insights.rewarded != null) {
+      _dynamicRewardedInsight = insights.rewarded;
+      String bidFloor = _dynamicRewardedInsight!.floorPrice.toStringAsFixed(10);
+
+      log("Loading Dynamic Rewarded with floor ${bidFloor}");
+      AppLovinMAX.setRewardedAdExtraParameter(_dynamicRewardedAdUnitId, "disable_auto_retries", "true");
+      AppLovinMAX.setRewardedAdExtraParameter(_dynamicRewardedAdUnitId, "jC7Fp", bidFloor);
+      AppLovinMAX.loadRewardedAd(_dynamicRewardedAdUnitId);
+    }
+  }
+
+  void loadDefaultRewarded() {
+    setState(() {
+      _defaultRewardedState = AdState.Loading;
+    });
+    AppLovinMAX.loadRewardedAd(_defaultRewardedAdUnitId);
   }
 
   Future<void> onRewardedShowClick() async {
-    bool isReady = (await AppLovinMAX.isRewardedAdReady(_rewardedAdUnitId))!;
-    if (isReady) {
-      AppLovinMAX.showRewardedAd(_rewardedAdUnitId);
+    bool isShown = false;
+    if (_dynamicRewardedState == AdState.Ready) {
+      bool isReady = (await AppLovinMAX.isRewardedAdReady(_dynamicRewardedAdUnitId))!;
+      if (isReady) {
+        AppLovinMAX.showRewardedAd(_dynamicRewardedAdUnitId);
+        isShown = true;
+      }
+      setState(() {
+        _dynamicRewardedState = AdState.Idle;
+      });
     }
-    setState(() {
-      _rewardedState = AdState.Idle;
-    });
+    if (!isShown && _defaultRewardedState == AdState.Ready) {
+      bool isReady = (await AppLovinMAX.isRewardedAdReady(_defaultRewardedAdUnitId))!;
+      if (isReady) {
+        AppLovinMAX.showRewardedAd(_defaultRewardedAdUnitId);
+        isShown = true;
+      }
+      setState(() {
+        _defaultRewardedState = AdState.Idle;
+      });
+    }
   }
 
   void addDemoIntegrationExampleEvent(int type) {
@@ -420,10 +468,22 @@ class MainState extends State<MainPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildButton(_rewardedState == AdState.Idle ? "Load Rewarded" : "Cancel",
-                              _rewardedState != AdState.Ready ? onRewardedLoadClick : null),
+                          Text("Load Rewarded"),
+                          Switch(
+                            value: _isRewardedLoading,
+                              onChanged: (value) {
+                                if (value) {
+                                  startRewardedLoading();
+                                }
+
+                                setState(() {
+                                  _isRewardedLoading = value;
+                                });
+
+                                addDemoIntegrationExampleEvent(2);
+                              }),
                           SizedBox(width: 10),
-                          _buildButton("Show Rewarded", _rewardedState == AdState.Ready ? onRewardedShowClick : null),
+                          _buildButton("Show Rewarded", (_dynamicRewardedState == AdState.Ready || _defaultRewardedState == AdState.Ready) ? onRewardedShowClick : null),
                         ],
                       ),
                       // TableRow 4
