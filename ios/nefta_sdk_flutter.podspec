@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'nefta_sdk_flutter'
-  s.version          = '4.3.2'
+  s.version          = '4.3.3'
   s.summary          = 'Nefta Flutter Plugin.'
   s.description      = <<-DESC
 Nefta Flutter Plugin.
@@ -11,7 +11,7 @@ Nefta Flutter Plugin.
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
-  s.dependency 'NeftaSDK', '4.3.1'
+  s.dependency 'NeftaSDK', '4.3.2'
   s.platform = :ios, '12.0'
 
   # Flutter.framework does not contain a i386 slice.

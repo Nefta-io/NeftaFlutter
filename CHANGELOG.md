@@ -1,3 +1,6 @@
+## 4.3.3
+iOS: Fixed rare race condition on iOS when requesting insights with limited connectivity
+
 ## 4.3.2
 iOS: Fixed rare race condition when requesting multiple insights at the same time
 
