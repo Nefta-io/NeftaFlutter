@@ -18,13 +18,15 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 
 public class Nefta implements FlutterPlugin, MethodCallHandler, ActivityAware {
-    private static final String _version = "4.3.0";
+    private static final String _version = "4.4.0";
+    private static final String _provider = "applovin-max";
 
     private boolean _isInitialized;
     private Context _context;
     private Handler _handler;
     private MethodChannel _sharedChannel;
     private ActivityPluginBinding _lastActivityPluginBinding;
+    private AdapterListener _listener;
 
     public static NeftaPlugin _plugin;
     public static Nefta _instance;
@@ -52,15 +54,15 @@ public class Nefta implements FlutterPlugin, MethodCallHandler, ActivityAware {
         _isInitialized = true;
         _handler = new Handler(Looper.getMainLooper());
 
-        d("Initializing NeftaPlugin v" + _version + "...");
-
         if (TextUtils.isEmpty(appId)) {
             throw new IllegalStateException("Unable to initialize Nefta SDK - missing appId");
         }
 
+        _listener = new AdapterListener(this::IOnInsights);
+
         _plugin = NeftaPlugin.Init(_context, appId);
-        _plugin._adapterCallback = this::OnInsights;
-        _plugin.OnReady = (HashMap<String, Placement> placements) -> {
+        _plugin._adapterCallback = _listener;
+        _plugin.OnReady = (InitConfiguration initConfig) -> {
             d("SDK initialized" );
             result.success(true);
             _plugin.OnReady = null;
@@ -80,6 +82,10 @@ public class Nefta implements FlutterPlugin, MethodCallHandler, ActivityAware {
                 enableLogging = enableLoggingBox;
             }
             NeftaPlugin.EnableLogging(enableLogging);
+        } else if ("setExtraParameter".equals(methodName)) {
+            String key = call.argument("key");
+            String value = call.argument("value");
+            NeftaPlugin.SetExtraParameter(key, value);
         } else if ("record".equals(methodName)) {
             int type = 0;
             int category = 0;
@@ -105,69 +111,59 @@ public class Nefta implements FlutterPlugin, MethodCallHandler, ActivityAware {
             }
             String customPayload = call.argument("customPayload");
             NeftaPlugin._instance.Record(type, category, subCategory, name, value, customPayload);
-        } else if ("onExternalMediationRequestLoaded".equals(methodName)) {
+        } else if ("onExternalMediationRequest".equals(methodName)) {
             int adType = 0;
             Integer adTypeBox = call.argument("adType");
             if (adTypeBox != null) {
                 adType = adTypeBox;
             }
-            String recommendedAdUnit = call.argument("recommendedAdUnitId");
-            double calculatedFloorPrice = 0;
-            Double calculatedFloorPriceBox = call.argument("calculatedFloorPrice");
-            if (calculatedFloorPriceBox != null) {
-                calculatedFloorPrice = calculatedFloorPriceBox;
+            String id = call.argument("id");
+            String requestedAdUnitId = call.argument("requestedAdUnitId");
+            double requestedFloorPrice = 0;
+            Double requestedFloorPriceBox = call.argument("requestedFloorPrice");
+            if (requestedFloorPriceBox != null) {
+                requestedFloorPrice = requestedFloorPriceBox;
             }
-            String adUnitId = call.argument("adUnitId");
+            int adOpportunityId = 0;
+            Integer adOpportunityIdBox = call.argument("adOpportunityId");
+            if (adOpportunityIdBox != null) {
+                adOpportunityId = adOpportunityIdBox;
+            }
+            NeftaPlugin.OnExternalMediationRequest(_provider, adType, id, requestedAdUnitId, requestedFloorPrice, adOpportunityId);
+        } else if ("onExternalMediationResponse".equals(methodName)) {
+            String id = call.argument("id");
             double revenue = 0;
             Double revenueBox = call.argument("revenue");
             if (revenueBox != null) {
                 revenue = revenueBox;
             }
             String precision = call.argument("precision");
-            onExternalMediationRequest(adType, recommendedAdUnit, calculatedFloorPrice, adUnitId, revenue, precision, 1, null, null);
-        } else if ("onExternalMediationRequestFailed".equals(methodName)) {
-            int adType = 0;
-            Integer adTypeBox = call.argument("adType");
-            if (adTypeBox != null) {
-                adType = adTypeBox;
+            int status = 0;
+            Integer statusBox = call.argument("status");
+            if (statusBox != null) {
+                status = statusBox;
             }
-            String recommendedAdUnit = call.argument("recommendedAdUnitId");
-            double calculatedFloorPrice = 0;
-            Double calculatedFloorPriceBox = call.argument("calculatedFloorPrice");
-            if (calculatedFloorPriceBox != null) {
-                calculatedFloorPrice = calculatedFloorPriceBox;
-            }
-            String adUnitId = call.argument("adUnitId");
-            int errorCode = 0;
-            Integer errorCodeBox = call.argument("errorCode");
-            if (errorCodeBox != null) {
-                errorCode = errorCodeBox;
-            }
-            int networkStatus = 0;
-            Integer networkErrorCodeBox = call.argument("networkErrorCode");
-            if (networkErrorCodeBox != null) {
-                networkStatus = networkErrorCodeBox;
-            }
-            onExternalMediationRequest(adType, recommendedAdUnit, calculatedFloorPrice, adUnitId, 0, null, errorCode == 204 ? 2 : 0, String.valueOf(errorCode), String.valueOf(networkStatus));
+            String providerStatus = call.argument("providerStatus");
+            NeftaPlugin.OnExternalMediationResponse(_provider, id, null, revenue, precision, status, providerStatus, null);
         } else if ("onExternalMediationImpression".equals(methodName)) {
+            boolean isClick = false;
+            Boolean isClickBox = call.argument("isClick");
+            if (isClickBox != null) {
+                isClick = isClickBox;
+            }
             String data = call.argument("data");
-            int adType = 0;
-            Integer adTypeBox = call.argument("adType");
-            if (adTypeBox != null) {
-                adType = adTypeBox;
-            }
-            double revenue = 0;
-            Double revenueBox = call.argument("revenue");
-            if (revenueBox != null) {
-                revenue = revenueBox;
-            }
-            String precision = call.argument("precision");
-            NeftaPlugin.OnExternalMediationImpressionAsString("applovin-max", data, adType, revenue, precision);
+            String id = call.argument("id");
+            NeftaPlugin.OnExternalMediationImpressionAsString(isClick, _provider, data, id, null);
         } else if ("getInsights".equals(methodName)) {
             int requestId = 0;
             Integer requestIdBox = call.argument("requestId");
             if (requestIdBox != null) {
                 requestId = requestIdBox;
+            }
+            int previousAdOpportunity = -1;
+            Integer previousAdOpportunityBox = call.argument("adOpportunityId");
+            if (previousAdOpportunityBox != null) {
+                previousAdOpportunity = previousAdOpportunityBox;
             }
             int insights = 0;
             Integer insightsBox = call.argument("insights");
@@ -179,7 +175,7 @@ public class Nefta implements FlutterPlugin, MethodCallHandler, ActivityAware {
             if (timeoutBox != null) {
                 timeout = timeoutBox;
             }
-            _plugin.GetInsightsBridge(requestId, insights, timeout);
+            _plugin.GetInsightsBridge(requestId, insights, previousAdOpportunity, timeout);
         } else if ("getNuid".equals(methodName)) {
             boolean present = false;
             Boolean presentBox = call.argument("present");
@@ -212,20 +208,18 @@ public class Nefta implements FlutterPlugin, MethodCallHandler, ActivityAware {
     @Override
     public void onDetachedFromActivity() { }
 
-    private static void onExternalMediationRequest(int adType, String recommendedAdUnitId, double calculatedFloorPrice, String adUnitId, double revenue, String precision, int status, String providerStatus, String networkStatus) {
-        NeftaPlugin.OnExternalMediationRequest("applovin-max", adType, recommendedAdUnitId, -1, calculatedFloorPrice, adUnitId, revenue, precision, status, providerStatus, networkStatus);
-    }
-
-    private void OnInsights(int id, String bi) {
-        _handler.post(() -> {
-            _sharedChannel.invokeMethod("onInsights", new HashMap<String, Object>() {{
-                put("requestId", id);
-                put("insights", bi);
-            }});
-        });
-    }
-
     private void d(String s) {
         Log.i("NeftaFlutter ", s);
+    }
+
+
+    private void IOnInsights(int requestId, int adapterResponseType, String adapterResponse) {
+        _handler.post(() -> {
+            _sharedChannel.invokeMethod("onInsights", new HashMap<String, Object>() {{
+                put("requestId", requestId);
+                put("adapterResponseType", adapterResponseType);
+                put("adapterResponse", adapterResponse);
+            }});
+        });
     }
 }

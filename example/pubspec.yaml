@@ -1,7 +1,7 @@
 name: nefta_sdk_flutter_example
 description: "Demonstrates how to use the nefta_sdk_flutter plugin."
 publish_to: 'none'
-version: 4.3.2
+version: 4.4.0
 
 environment:
   sdk: ^3.8.1
@@ -10,7 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   applovin_max: any
-  nefta_sdk_flutter: any
+  nefta_sdk_flutter:
+    path: ../
 
   cupertino_icons: ^1.0.8
 

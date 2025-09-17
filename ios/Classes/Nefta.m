@@ -5,6 +5,8 @@
 static Nefta *instance;
 static FlutterMethodChannel *sharedChannel;
 
+NSString *const _provider = @"applovin-max";
+
 +(void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
     sharedChannel = [FlutterMethodChannel methodChannelWithName: @"nefta" binaryMessenger: [registrar messenger]];
     Nefta *instance = [[Nefta alloc] init];
@@ -39,10 +41,10 @@ static FlutterMethodChannel *sharedChannel;
     }
     
     _plugin = [NeftaPlugin InitWithAppId: appId];
-    _plugin.OnInsightsAsString = ^(NSInteger requestId, NSString * _Nullable insights) {
-        [self OnInsights: (int)requestId insights: insights];
+    _plugin.OnInsightsAsString = ^(NSInteger requestId, NSInteger adapterResponseType, NSString * _Nullable adapterResponse) {
+        [self OnInsights: (int)requestId adapterResponseType: (int)adapterResponseType adapterResponse: adapterResponse];
     };
-    _plugin.OnReady = ^(NSDictionary<NSString *, Placement *> * placements) {
+    _plugin.OnReady = ^(InitConfiguration * initConfig) {
         result(@"initilized");
     };
 }
@@ -71,43 +73,47 @@ static FlutterMethodChannel *sharedChannel;
             customPayload = customPayloadBox;
         }
         [_plugin RecordWithType: type category: category subCategory: subCategory name: name value: value customPayload: customPayload];
-    } else if ([@"onExternalMediationRequestLoaded" isEqualToString: methodName]) {
+    } else if ([@"onExternalMediationRequest" isEqualToString: methodName]) {
         int adType = ((NSNumber *)call.arguments[@"adType"]).intValue;
-        NSString *recommendedAdUnitId = nil;
-        id recommendedAdUnitIdBox = call.arguments[@"recommendedAdUnitId"];
-        if ([recommendedAdUnitIdBox isKindOfClass: [NSString class]]) {
-            recommendedAdUnitId = recommendedAdUnitIdBox;
+        NSString *id0 = nil;
+        id id0Box = call.arguments[@"id"];
+        if ([id0Box isKindOfClass: [NSString class]]) {
+            id0 = id0Box;
         }
-        double calculatedFloorPrice = ((NSNumber *)call.arguments[@"calculatedFloorPrice"]).doubleValue;
-        NSString *adUnitId = call.arguments[@"adUnitId"];
-        double revenue = ((NSString*)call.arguments[@"revenue"]).doubleValue;
-        NSString *precision = call.arguments[@"precision"];
-        [self onExternalMediationRequest: adType recommendedAdUnitId: recommendedAdUnitId calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: revenue precision: precision status: 1 providerStatus: nil networkStatus: nil];
-    } else if ([@"onExternalMediationRequestFailed" isEqualToString: methodName]) {
-        int adType = ((NSNumber *)call.arguments[@"adType"]).intValue;
-        NSString *recommendedAdUnitId = nil;
-        id recommendedAdUnitIdBox = call.arguments[@"recommendedAdUnitId"];
-        if ([recommendedAdUnitIdBox isKindOfClass: [NSString class]]) {
-            recommendedAdUnitId = recommendedAdUnitIdBox;
+        NSString *requestedAdUnitId = nil;
+        id requestedAdUnitIdBox = call.arguments[@"requestedAdUnitId"];
+        if ([requestedAdUnitIdBox isKindOfClass: [NSString class]]) {
+            requestedAdUnitId = requestedAdUnitIdBox;
         }
-        double calculatedFloorPrice = ((NSNumber *)call.arguments[@"calculatedFloorPrice"]).doubleValue;
-        NSString *adUnitId = call.arguments[@"adUnitId"];
-        int errorCode = ((NSNumber *)call.arguments[@"errorCode"]).intValue;
-        int networkErrorCode = ((NSNumber *)call.arguments[@"networkErrorCode"]).intValue;
-        NSString *providerStatus = [NSString stringWithFormat:@"%d", errorCode];
-        NSString *networkStatus = [NSString stringWithFormat:@"%d", networkErrorCode];
-        [self onExternalMediationRequest: adType recommendedAdUnitId: recommendedAdUnitId calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: 0 precision: nil status: errorCode == 204 ? 2 : 0 providerStatus: providerStatus networkStatus: networkStatus];
+        double requestedFloorPrice = ((NSNumber *)call.arguments[@"requestedFloorPrice"]).doubleValue;
+        int adOpportunityId = ((NSNumber *)call.arguments[@"adOpportunityId"]).intValue;
+        [NeftaPlugin OnExternalMediationRequest: _provider adType: adType id: id0 requestedAdUnitId: requestedAdUnitId requestedFloorPrice: requestedFloorPrice adOpportunityId: adOpportunityId];
+    } else if ([@"onExternalMediationResponse" isEqualToString: methodName]) {
+        NSString *id0 = call.arguments[@"id"];
+        double revenue = ((NSNumber *)call.arguments[@"revenue"]).doubleValue;
+        NSString *precision = nil;
+        id precisionBox = call.arguments[@"precision"];
+        if ([precisionBox isKindOfClass: [NSString class]]) {
+            precision = precisionBox;
+        }
+        int status = ((NSNumber *)call.arguments[@"status"]).intValue;
+        NSString *providerStatus = nil;
+        id providerStatusBox = call.arguments[@"providerStatus"];
+        if ([providerStatusBox isKindOfClass: [NSString class]]) {
+            providerStatus = providerStatusBox;
+        }
+        [NeftaPlugin OnExternalMediationResponse: _provider id: id0 id2: nil revenue: revenue precision: precision status: status providerStatus: providerStatus networkStatus: nil];
     } else if ([@"onExternalMediationImpression" isEqualToString: methodName]) {
+        bool isClick = call.arguments[@"isClick"];
         NSString *data = call.arguments[@"data"];
-        int adType = ((NSNumber *)call.arguments[@"adType"]).intValue;
-        double revenue = ((NSString*)call.arguments[@"revenue"]).doubleValue;
-        NSString *precision = call.arguments[@"precision"];
-        [NeftaPlugin OnExternalMediationImpressionAsString: @"applovin-max" data: data adType: adType revenue: revenue precision: precision];
+        NSString *id0 = call.arguments[@"id"];
+        [NeftaPlugin OnExternalMediationImpressionAsString: isClick provider: _provider data: data id: id0 id2: nil];
     } else if ([@"getInsights" isEqualToString: methodName]) {
         int requestId = ((NSNumber *)call.arguments[@"requestId"]).intValue;
+        int previousAdOpportunity = ((NSNumber *)call.arguments[@"adOpportunityId"]).intValue;
         int insights = ((NSNumber *)call.arguments[@"insights"]).intValue;
         int timeout = ((NSNumber *)call.arguments[@"timeout"]).intValue;
-        [_plugin GetInsightsBridge: requestId insights: insights timeout: timeout];
+        [_plugin GetInsightsBridge: requestId insights: insights previousAdOpportunityId: previousAdOpportunity timeout: timeout];
     } else if ([@"getNuid" isEqualToString: methodName]) {
         BOOL present = ((NSNumber *)call.arguments[@"present"]).boolValue;
         __unused NSString *nuid = [_plugin GetNuidWithPresent: present];
@@ -123,17 +129,16 @@ static FlutterMethodChannel *sharedChannel;
     }
 }
 
--(void)onExternalMediationRequest:(int)adType recommendedAdUnitId:(NSString *)recommendedAdUnitId calculatedFloorPrice:(double)calculatedFloorPrice adUnitId:(NSString *)adUnitId revenue:(double)revenue precision:(NSString *)precision status:(int) status providerStatus:(NSString *)providerStatus networkStatus:(NSString *)networkStatus {
-    [NeftaPlugin OnExternalMediationRequest: @"applovin-max" adType: adType recommendedAdUnitId: recommendedAdUnitId requestedFloorPrice: -1 calculatedFloorPrice: calculatedFloorPrice adUnitId: adUnitId revenue: revenue precision: precision status: status providerStatus: providerStatus networkStatus: networkStatus];
-}
-
--(void)OnInsights:(int)requestId insights:(NSString *)insights {
+- (void)OnInsights:(int)requestId adapterResponseType:(int)adapterResponseType adapterResponse:(NSString *)adapterResponse {
     dispatch_async(dispatch_get_main_queue(), ^{
-        [sharedChannel invokeMethod: @"onInsights" arguments: @{@"requestId": @(requestId), @"insights": insights}];
+        [sharedChannel invokeMethod: @"onInsights"
+                          arguments: @{@"requestId": @(requestId),
+                                       @"adapterResponseType": @(adapterResponseType),
+                                       @"adapterResponse": adapterResponse }];
     });
 }
 
--(void)log:(NSString *)format, ... {
+- (void)log:(NSString *)format, ... {
     va_list valist;
     va_start(valist, format);
     NSString *message = [[NSString alloc] initWithFormat: format arguments: valist];
@@ -141,4 +146,5 @@ static FlutterMethodChannel *sharedChannel;
     
     NSLog(@"NeftaFlutter %@", message);
 }
+
 @end

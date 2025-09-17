@@ -1,3 +1,7 @@
+## 4.4.0
+Updated External Mediation Event interface for better tracking
+Added support for additional publisher parameters
+
 ## 4.3.3
 iOS: Fixed rare race condition on iOS when requesting insights with limited connectivity
 

@@ -22,8 +22,8 @@ android {
         applicationId = "com.nefta.fluttermax"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 8
-        versionName = "4.3.0"
+        versionCode = 14
+        versionName = "4.4.0"
     }
 
     buildTypes {

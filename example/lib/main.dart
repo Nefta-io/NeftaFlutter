@@ -26,10 +26,8 @@ class MainPage extends StatefulWidget {
   MainState createState() => MainState();
 }
 
-enum AdState {
-  Idle,
-  Loading,
-  Ready
+class _AdRequest {
+  double? revenue;
 }
 
 class MainState extends State<MainPage> {
@@ -37,35 +35,34 @@ class MainState extends State<MainPage> {
 
   static final String _neftaAppId = Platform.isAndroid ? "5678631082786816" : "5727602702548992";
   static final String _defaultBannerAdUnitId = Platform.isAndroid ? "d3d61616c344d2b4" : "78161f678bc0c46f";
+  static final String _dynamicInterstitialAdUnitId = Platform.isAndroid ? "084edff9524b52ec" : "fbd50dc3d655933c";
   static final String _defaultInterstitialAdUnitId = Platform.isAndroid ? "0822634ec9c39d78" : "5e11b1838778c517";
-  static final String _defaultRewardedAdUnitId = Platform.isAndroid ? "3d7ef05a78cf8615" : "ad9b024164e61c00";
   static final String _dynamicRewardedAdUnitId = Platform.isAndroid ? "c0c516310b8c7c04" : "c068edf12c4282a6";
-
-  static final List<String> _adUnits = Platform.isAndroid ?
-      ["0822634ec9c39d78", "084edff9524b52ec", "3d7ef05a78cf8615", "c0c516310b8c7c04" ] :
-      ["5e11b1838778c517", "fbd50dc3d655933c", "ad9b024164e61c00", "c068edf12c4282a6" ];
+  static final String _defaultRewardedAdUnitId = Platform.isAndroid ? "3d7ef05a78cf8615" : "ad9b024164e61c00";
 
   String _bannerAdUnitId = _defaultBannerAdUnitId;
-  String _interstitialAdUnitId = _defaultInterstitialAdUnitId;
 
   String _statusText = "Status";
   bool _isBannerMounted = false;
 
-  AdInsight? _interstitialInsight;
-  AdState _interstitialState = AdState.Idle;
-  int _interstitialRetryAttempt = 0;
+  bool _isInterstitialLoadingOn = false;
+  AdInsight? _dynamicInterstitialInsight;
+  _AdRequest? _dynamicInterstitialRequest;
+  _AdRequest? _defaultInterstitialRequest;
+  int _dynamicInterstitialFails = 0;
 
-  bool _isRewardedLoading = false;
+  bool _isRewardedLoadingOn = false;
   AdInsight? _dynamicRewardedInsight;
-  AdState _defaultRewardedState = AdState.Idle;
-  AdState _dynamicRewardedState = AdState.Idle;
-  int _dynamicRewardedRetryAttempt = 0;
+  _AdRequest? _dynamicRewardedRequest;
+  _AdRequest? _defaultRewardedRequest;
+  int _dynamicRewardedFails = 0;
 
   @override
   void initState() {
     super.initState();
 
     Nefta.enableLogging(true);
+    Nefta.setExtraParameter(Nefta.extParamTestGroup, "split-f");
     Nefta.init(_neftaAppId);
 
     initializeAds();
@@ -73,7 +70,9 @@ class MainState extends State<MainPage> {
 
   Future<void> initializeAds() async {
     try {
-      AppLovinMAX.setExtraParameter("disable_b2b_ad_unit_ids", _adUnits.join(","));
+      List<String> defaultAdUnitsForPreloading = Platform.isAndroid ?
+      ["084edff9524b52ec", "c0c516310b8c7c04" ] : ["fbd50dc3d655933c", "c068edf12c4282a6" ];
+      AppLovinMAX.setExtraParameter("disable_b2b_ad_unit_ids", defaultAdUnitsForPreloading.join(","));
       await AppLovinMAX.initialize("IAhBswbDpMg9GhQ8NEKffzNrXQP1H4ABNFvUA7ePIz2xmarVFcy_VB8UfGnC9IPMOgpQ3p8G5hBMebJiTHv3P9");
       setState(() {
         _statusText = "Ads Initialized Successfully";
@@ -127,28 +126,50 @@ class MainState extends State<MainPage> {
   void initializeInterstitial() {
     AppLovinMAX.setInterstitialListener(InterstitialListener(
       onAdLoadedCallback: (ad) {
-        Nefta.onExternalMediationRequestLoaded(AdType.Interstitial, _interstitialInsight, ad);
+        Nefta.onExternalMediationRequestLoaded(ad);
 
-        log("Interstitial ad loaded from ${ad.networkName}");
-        _interstitialRetryAttempt = 0;
-        setState(() {
-          _interstitialState = AdState.Ready;
-        });
+        if (ad.adUnitId == _dynamicInterstitialAdUnitId) {
+          log("Loaded Dynamic Interstitial ${ad.adUnitId} at ${ad.revenue}");
+          _dynamicInterstitialFails = 0;
+          setState(() {
+            _dynamicInterstitialRequest!.revenue = ad.revenue;
+          });
+        } else {
+          log("Loaded Default Interstitial ${ad.adUnitId} at ${ad.revenue}");
+          setState(() {
+            _defaultInterstitialRequest!.revenue = ad.revenue;
+          });
+        }
       },
       onAdLoadFailedCallback: (adUnitId, error) {
-        Nefta.onExternalMediationRequestFailed(AdType.Interstitial, _interstitialInsight, adUnitId, error);
+        Nefta.onExternalMediationRequestFailed(adUnitId, error);
 
-        _interstitialRetryAttempt = _interstitialRetryAttempt + 1;
-        if (_interstitialRetryAttempt > 6) return;
-        int retryDelay = pow(2, min(6, _interstitialRetryAttempt)).toInt();
+        if (adUnitId == _dynamicInterstitialAdUnitId) {
+          _dynamicInterstitialFails = _dynamicInterstitialFails + 1;
+          int retryDelay = pow(2, min(6, _dynamicInterstitialFails)).toInt();
 
-        log("Interstitial ad failed to load with code ${error.code.toString()} - retrying in ${retryDelay.toString()}s");
+          log("Load failed Dynamic Interstitial ${error.code.toString()} - retrying in ${retryDelay.toString()}s");
 
-        Future.delayed(Duration(milliseconds: retryDelay * 1000), () {
-          if (_interstitialState == AdState.Loading) {
-            getInterstitialInsightAndLoad();
+          Future.delayed(Duration(milliseconds: retryDelay * 1000), () {
+            if (_isInterstitialLoadingOn) {
+              getInterstitialInsightAndLoad(_dynamicInterstitialInsight);
+            } else {
+              setState(() {
+                _dynamicInterstitialRequest = null;
+              });
+            }
+          });
+        } else {
+          log("Load failed Default Interstitial code ${error.code.toString()}");
+
+          if (_isInterstitialLoadingOn) {
+            loadDefaultInterstitial();
+          } else {
+            setState(() {
+              _defaultInterstitialRequest = null;
+            });
           }
-        });
+        }
       },
       onAdDisplayedCallback: (ad) {
         log("onAdDisplayedCallback");
@@ -157,10 +178,17 @@ class MainState extends State<MainPage> {
         log("onAdDisplayFailedCallback");
       },
       onAdClickedCallback: (ad) {
+        Nefta.onExternalMediationClick(ad);
+
         log("onAdClickedCallback");
       },
       onAdHiddenCallback: (ad) {
         log("onAdHiddenCallback");
+
+        // start new cycle
+        if (_isInterstitialLoadingOn) {
+          startInterstitialLoading();
+        }
       },
       onAdRevenuePaidCallback: (ad) {
         Nefta.onExternalMediationImpression(ad);
@@ -173,51 +201,47 @@ class MainState extends State<MainPage> {
   void initializeRewarded() {
     AppLovinMAX.setRewardedAdListener(RewardedAdListener(
         onAdLoadedCallback: (ad) {
-          if (ad.adUnitId == _dynamicRewardedAdUnitId) {
-            Nefta.onExternalMediationRequestLoaded(AdType.Rewarded, _dynamicRewardedInsight, ad);
+          Nefta.onExternalMediationRequestLoaded(ad);
 
+          if (ad.adUnitId == _dynamicRewardedAdUnitId) {
             log("Loaded Dynamic Rewarded ${ad.adUnitId} at ${ad.revenue}");
-            _dynamicRewardedRetryAttempt = 0;
+            _dynamicRewardedFails = 0;
             setState(() {
-              _dynamicRewardedState = AdState.Ready;
+              _dynamicRewardedRequest!.revenue = ad.revenue;
             });
           } else {
-            Nefta.onExternalMediationRequestLoaded(AdType.Rewarded, null, ad);
-
             log("Loaded Default Rewarded ${ad.adUnitId} at ${ad.revenue}");
             setState(() {
-              _defaultRewardedState = AdState.Ready;
+              _defaultRewardedRequest!.revenue = ad.revenue;
             });
           }
-
         },
         onAdLoadFailedCallback: (adUnitId, error) {
-          if (adUnitId == _dynamicRewardedAdUnitId) {
-            Nefta.onExternalMediationRequestFailed(AdType.Rewarded, _dynamicRewardedInsight, adUnitId, error);
+          Nefta.onExternalMediationRequestFailed(adUnitId, error);
 
-            _dynamicRewardedRetryAttempt = _dynamicRewardedRetryAttempt + 1;
-            int retryDelay = pow(2, min(6, _dynamicRewardedRetryAttempt)).toInt();
+          if (adUnitId == _dynamicRewardedAdUnitId) {
+            _dynamicRewardedFails = _dynamicRewardedFails + 1;
+            int retryDelay = pow(2, min(6, _dynamicRewardedFails)).toInt();
+
             log("Load failed Dynamic Rewarded code ${error.code.toString()} - retrying in ${retryDelay.toString()}s");
 
             Future.delayed(Duration(milliseconds: retryDelay * 1000), () {
-              if (_isRewardedLoading) {
-                getRewardedInsightAndLoad();
+              if (_isRewardedLoadingOn) {
+                getRewardedInsightAndLoad(_dynamicRewardedInsight);
               } else {
                 setState(() {
-                  _dynamicRewardedState = AdState.Idle;
+                  _dynamicRewardedRequest = null;
                 });
               }
             });
           } else {
-            Nefta.onExternalMediationRequestFailed(AdType.Rewarded, _dynamicRewardedInsight, adUnitId, error);
+            log("Load failed Default Rewarded code ${error.code.toString()}");
 
-            log("Load failed Dynamic Rewarded code ${error.code.toString()}");
-
-            if (_isRewardedLoading) {
+            if (_isRewardedLoadingOn) {
               loadDefaultRewarded();
             } else {
               setState(() {
-                _defaultRewardedState = AdState.Idle;
+                _defaultRewardedRequest = null;
               });
             }
           }
@@ -229,10 +253,17 @@ class MainState extends State<MainPage> {
           log("onAdDisplayFailedCallback");
         },
         onAdClickedCallback: (ad) {
+          Nefta.onExternalMediationClick(ad);
+
           log("onAdClickedCallback");
         },
         onAdHiddenCallback: (ad) {
           log("onAdClickedCallback");
+
+          // start new cycle
+          if (_isRewardedLoadingOn) {
+            startRewardedLoading();
+          }
         },
         onAdRevenuePaidCallback: (ad) {
           Nefta.onExternalMediationImpression(ad);
@@ -246,7 +277,7 @@ class MainState extends State<MainPage> {
   }
 
   void log(String log) {
-    print(log);
+    print("NeftaPluginF ${log}");
     setState(() {
       _statusText = log;
     });
@@ -264,105 +295,166 @@ class MainState extends State<MainPage> {
     addDemoIntegrationExampleEvent(1);
   }
 
-  void getInterstitialInsightAndLoad() {
-    Nefta.getInsights(Insights.INTERSTITIAL, loadInterstitial, 5);
+  void getInterstitialInsightAndLoad(AdInsight? previousInsight) {
+    setState(() {
+      _dynamicInterstitialRequest = _AdRequest();
+    });
+    Nefta.getInsights(Insights.INTERSTITIAL, previousInsight, loadDynamicInterstitial, 5);
   }
 
-  void loadInterstitial(Insights insights) {
-    _interstitialAdUnitId = _defaultInterstitialAdUnitId;
+  void loadDynamicInterstitial(Insights insights) {
+    _dynamicInterstitialInsight = insights.interstitial;
+    if (_dynamicInterstitialInsight != null) {
+      String bidFloor = _dynamicInterstitialInsight!.floorPrice.toStringAsFixed(10);
 
-    _interstitialInsight = insights.interstitial;
-    if (_interstitialInsight != null) {
-      if (_interstitialInsight!.adUnit != null && _interstitialInsight!.adUnit!.isNotEmpty) {
-        _interstitialAdUnitId = _interstitialInsight!.adUnit!;
-      }
+      log("Loading Dynamic Interstitial with floor ${bidFloor}");
+      AppLovinMAX.setInterstitialExtraParameter(_dynamicInterstitialAdUnitId, "disable_auto_retries", "true");
+      AppLovinMAX.setInterstitialExtraParameter(_dynamicInterstitialAdUnitId, "jC7Fp", bidFloor);
+      AppLovinMAX.loadInterstitial(_dynamicInterstitialAdUnitId);
+
+      Nefta.onExternalMediationRequest(AdType.Interstitial, _dynamicInterstitialAdUnitId, _dynamicInterstitialInsight);
     }
-
-    AppLovinMAX.setInterstitialExtraParameter(_interstitialAdUnitId, "disable_auto_retries", "true");
-    AppLovinMAX.loadInterstitial(_interstitialAdUnitId);
   }
 
-  void onInterstitialLoadClick() {
-    if (_interstitialState == AdState.Loading) {
-      setState(() {
-        _interstitialState = AdState.Idle;
-      });
-    } else {
-      getInterstitialInsightAndLoad();
-      setState(() {
-        _interstitialState = AdState.Loading;
-      });
-      addDemoIntegrationExampleEvent(1);
+  void loadDefaultInterstitial() {
+    setState(() {
+      _defaultInterstitialRequest = _AdRequest();
+    });
+    AppLovinMAX.loadInterstitial(_defaultInterstitialAdUnitId);
+
+    Nefta.onExternalMediationRequest(AdType.Interstitial, _defaultInterstitialAdUnitId);
+  }
+
+  void startInterstitialLoading() {
+    if (_dynamicInterstitialRequest == null) {
+      getInterstitialInsightAndLoad(null);
+    }
+    if (_defaultInterstitialRequest == null) {
+      loadDefaultInterstitial();
     }
   }
 
   Future<void> onInterstitialShowClick() async {
-    bool isReady = (await AppLovinMAX.isInterstitialReady(_interstitialAdUnitId))!;
+    bool isShown = false;
+    if (_dynamicInterstitialRequest != null && _dynamicInterstitialRequest!.revenue != null) {
+      if (_defaultInterstitialRequest != null && _defaultInterstitialRequest!.revenue != null &&
+          _defaultInterstitialRequest!.revenue! > _dynamicInterstitialRequest!.revenue!) {
+        isShown = await tryShowDefaultInterstitial();
+      }
+      if (!isShown) {
+        isShown = await tryShowDynamicInterstitial();
+      }
+    }
+    if (!isShown && _defaultInterstitialRequest != null && _defaultInterstitialRequest!.revenue != null) {
+      tryShowDefaultInterstitial();
+    }
+  }
+
+  Future<bool> tryShowDynamicInterstitial() async {
+    bool isShown = false;
+    bool isReady = (await AppLovinMAX.isInterstitialReady(_dynamicInterstitialAdUnitId))!;
     if (isReady) {
-      AppLovinMAX.showInterstitial(_interstitialAdUnitId);
+      AppLovinMAX.showInterstitial(_dynamicInterstitialAdUnitId);
+      isShown = true;
     }
     setState(() {
-      _interstitialState = AdState.Idle;
+      _dynamicInterstitialRequest = null;
     });
+    return isShown;
+  }
+
+  Future<bool> tryShowDefaultInterstitial() async {
+    bool isShown = false;
+    bool isReady = (await AppLovinMAX.isInterstitialReady(_defaultInterstitialAdUnitId))!;
+    if (isReady) {
+      AppLovinMAX.showInterstitial(_defaultInterstitialAdUnitId);
+      isShown = true;
+    }
+    setState(() {
+      _defaultInterstitialRequest = null;
+    });
+    return isShown;
   }
 
   void startRewardedLoading() {
-    if (_dynamicRewardedState == AdState.Idle) {
-      getRewardedInsightAndLoad();
+    if (_dynamicRewardedRequest == null) {
+      getRewardedInsightAndLoad(null);
     }
-    if (_defaultRewardedState == AdState.Idle) {
+    if (_defaultRewardedRequest == null) {
       loadDefaultRewarded();
     }
   }
 
-  void getRewardedInsightAndLoad() {
+  void getRewardedInsightAndLoad(AdInsight? previousInsight) {
     setState(() {
-      _dynamicRewardedState = AdState.Loading;
+      _dynamicRewardedRequest = _AdRequest();
     });
-    Nefta.getInsights(Insights.REWARDED, loadDynamicRewarded, 5);
+    Nefta.getInsights(Insights.REWARDED, previousInsight, loadDynamicRewarded, 5);
   }
 
   void loadDynamicRewarded(Insights insights) {
+    _dynamicRewardedInsight = insights.rewarded;
     if (insights.rewarded != null) {
-      _dynamicRewardedInsight = insights.rewarded;
       String bidFloor = _dynamicRewardedInsight!.floorPrice.toStringAsFixed(10);
 
       log("Loading Dynamic Rewarded with floor ${bidFloor}");
       AppLovinMAX.setRewardedAdExtraParameter(_dynamicRewardedAdUnitId, "disable_auto_retries", "true");
       AppLovinMAX.setRewardedAdExtraParameter(_dynamicRewardedAdUnitId, "jC7Fp", bidFloor);
       AppLovinMAX.loadRewardedAd(_dynamicRewardedAdUnitId);
+
+      Nefta.onExternalMediationRequest(AdType.Rewarded, _dynamicRewardedAdUnitId, _dynamicRewardedInsight);
     }
   }
 
   void loadDefaultRewarded() {
     setState(() {
-      _defaultRewardedState = AdState.Loading;
+      _defaultRewardedRequest = _AdRequest();
     });
     AppLovinMAX.loadRewardedAd(_defaultRewardedAdUnitId);
+
+    Nefta.onExternalMediationRequest(AdType.Rewarded, _defaultRewardedAdUnitId);
   }
 
   Future<void> onRewardedShowClick() async {
     bool isShown = false;
-    if (_dynamicRewardedState == AdState.Ready) {
-      bool isReady = (await AppLovinMAX.isRewardedAdReady(_dynamicRewardedAdUnitId))!;
-      if (isReady) {
-        AppLovinMAX.showRewardedAd(_dynamicRewardedAdUnitId);
-        isShown = true;
+    if (_dynamicRewardedRequest != null && _dynamicRewardedRequest!.revenue != null) {
+      if (_defaultRewardedRequest != null && _defaultRewardedRequest!.revenue != null &&
+      _defaultRewardedRequest!.revenue! > _dynamicRewardedRequest!.revenue!) {
+        isShown = await tryShowDefaultRewarded();
       }
-      setState(() {
-        _dynamicRewardedState = AdState.Idle;
-      });
-    }
-    if (!isShown && _defaultRewardedState == AdState.Ready) {
-      bool isReady = (await AppLovinMAX.isRewardedAdReady(_defaultRewardedAdUnitId))!;
-      if (isReady) {
-        AppLovinMAX.showRewardedAd(_defaultRewardedAdUnitId);
-        isShown = true;
+      if (!isShown) {
+        isShown = await tryShowDynamicRewarded();
       }
-      setState(() {
-        _defaultRewardedState = AdState.Idle;
-      });
     }
+    if (!isShown && _defaultRewardedRequest != null && _defaultRewardedRequest!.revenue != null) {
+      tryShowDefaultRewarded();
+    }
+  }
+
+  Future<bool> tryShowDynamicRewarded() async {
+    bool isShown = false;
+    bool isReady = (await AppLovinMAX.isRewardedAdReady(_dynamicRewardedAdUnitId))!;
+    if (isReady) {
+      AppLovinMAX.showRewardedAd(_dynamicRewardedAdUnitId);
+      isShown = true;
+    }
+    setState(() {
+      _dynamicRewardedRequest = null;
+    });
+    return isShown;
+  }
+
+  Future<bool> tryShowDefaultRewarded() async {
+    bool isShown = false;
+    bool isReady = (await AppLovinMAX.isRewardedAdReady(_defaultRewardedAdUnitId))!;
+    if (isReady) {
+      AppLovinMAX.showRewardedAd(_defaultRewardedAdUnitId);
+      isShown = true;
+    }
+    setState(() {
+      _defaultRewardedRequest = null;
+    });
+    return isShown;
   }
 
   void addDemoIntegrationExampleEvent(int type) {
@@ -458,10 +550,23 @@ class MainState extends State<MainPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildButton(_interstitialState == AdState.Idle ? "Load Interstitial" : "Cancel",
-                              _interstitialState != AdState.Ready ? onInterstitialLoadClick : null),
+                          Text("Load Interstitial"),
+                          Switch(
+                              value: _isInterstitialLoadingOn,
+                              onChanged: (value) {
+                                if (value) {
+                                  startInterstitialLoading();
+                                }
+
+                                setState(() {
+                                  _isInterstitialLoadingOn = value;
+                                });
+
+                                addDemoIntegrationExampleEvent(2);
+                              }),
                           SizedBox(width: 10),
-                          _buildButton("Show Interstitial", _interstitialState == AdState.Ready ? onInterstitialShowClick : null),
+                          _buildButton("Show Interstitial", _dynamicInterstitialRequest != null && _dynamicInterstitialRequest!.revenue != null ||
+                              _defaultInterstitialRequest != null && _defaultInterstitialRequest!.revenue != null ? onInterstitialShowClick : null),
                         ],
                       ),
                       // TableRow 3
@@ -470,20 +575,21 @@ class MainState extends State<MainPage> {
                         children: [
                           Text("Load Rewarded"),
                           Switch(
-                            value: _isRewardedLoading,
+                            value: _isRewardedLoadingOn,
                               onChanged: (value) {
                                 if (value) {
                                   startRewardedLoading();
                                 }
 
                                 setState(() {
-                                  _isRewardedLoading = value;
+                                  _isRewardedLoadingOn = value;
                                 });
 
                                 addDemoIntegrationExampleEvent(2);
                               }),
                           SizedBox(width: 10),
-                          _buildButton("Show Rewarded", (_dynamicRewardedState == AdState.Ready || _defaultRewardedState == AdState.Ready) ? onRewardedShowClick : null),
+                          _buildButton("Show Rewarded", (_dynamicRewardedRequest != null && _dynamicRewardedRequest!.revenue != null ||
+                              _defaultRewardedRequest != null && _defaultRewardedRequest!.revenue != null) ? onRewardedShowClick : null),
                         ],
                       ),
                       // TableRow 4

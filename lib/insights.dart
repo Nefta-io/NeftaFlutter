@@ -23,18 +23,20 @@ class Churn {
 }
 
 class AdInsight {
+  int adOpportunityId = 0;
   AdType type = AdType.Other;
   double floorPrice = 0;
   String? adUnit = null;
 
-  AdInsight(AdType type, double floorPrice, String? adUnit) {
+  AdInsight(AdType type, double floorPrice, String? adUnit, int adOpportunityId) {
     this.type = type;
+    this.adOpportunityId = adOpportunityId;
     this.floorPrice = floorPrice;
     this.adUnit = adUnit;
   }
 
   @override
   String toString() {
-    return "AdInsight[type: ${type}, recommendedAdUnit: ${adUnit}, floorPrice: ${floorPrice}]";
+    return "AdInsight[type: ${type}, recommendedAdUnit: ${adUnit}, floorPrice: ${floorPrice}, adOpportunityId: ${adOpportunityId}]";
   }
 }

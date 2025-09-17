@@ -8,6 +8,6 @@
 @property (nonatomic, strong, readonly, class) Nefta *shared;
 @property (nonatomic, weak, readonly) NeftaPlugin *plugin;
 @property (nonatomic, assign) BOOL isInitialized;
--(void)OnInsights:(int)requestId insights:(NSString *)insights;
+-(void)OnInsights:(int)requestId adapterResponseType:(int)adapterResponseType adapterResponse:(NSString *)adapterResponse;
 -(void)log:(NSString *)format, ...;
 @end

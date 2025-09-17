@@ -27,10 +27,16 @@ class Nefta {
   static bool _hasInitializeInvoked = false;
   static final Completer<bool> _initializeCompleter = Completer<bool>();
 
+  static const String extParamTestGroup = "test_group";
+
   Nefta();
 
   static void enableLogging(bool enable) {
     _methodChannel.invokeMethod('enableLogging', { 'enable': enable});
+  }
+
+  static void setExtraParameter(String key, String value) {
+    _methodChannel.invokeMethod('setExtraParameter', { 'key': key, 'value': value });
   }
 
   static void override(String override) {
@@ -62,10 +68,15 @@ class Nefta {
   static final Map<int, Function(Insights)> _callbackRegistry = {};
   static int _requestId = 0;
 
-  static void getInsights(int insights, Function(Insights) callback, [int timeoutInSeconds=0]) {
+  static void getInsights(int insights, AdInsight? previousInsight, Function(Insights) callback, [int timeoutInSeconds=0]) {
     _callbackRegistry[_requestId] = callback;
+    int previousAdOpportunity = -1;
+    if (previousInsight != null) {
+      previousAdOpportunity = previousInsight.adOpportunityId;
+    }
     _methodChannel.invokeMapMethod('getInsights', {
       "requestId": _requestId,
+      "adOpportunityId": previousAdOpportunity,
       "insights": insights,
       "timeout": timeoutInSeconds
     });
@@ -75,37 +86,36 @@ class Nefta {
   static Future<void> _handleNativeCallback(MethodCall call) async {
     if (call.method == 'onInsights') {
       final int requestId = call.arguments['requestId'];
-      final String insightsString = call.arguments['insights'];
+      final int adapterResponseType = call.arguments['adapterResponseType'];
+      final String insightsString = call.arguments['adapterResponse'];
 
       Insights insights = Insights();
 
       final Map<String, dynamic> data = jsonDecode(insightsString);
-      if (data.containsKey("churn")) {
-        final Map<String, dynamic> churnData = data['churn'];
+      if (adapterResponseType == Insights.CHURN) {
         Churn churn = Churn();
-        churn.d1_probability = churnData["d1_probability"] as double;
-        churn.d3_probability = churnData["d3_probability"] as double;
-        churn.d7_probability = churnData["d7_probability"] as double;
-        churn.d14_probability = churnData["d14_probability"] as double;
-        churn.d30_probability = churnData["d30_probability"] as double;
-        churn.probability_confidence = churnData["probability_confidence"] as String;
+        churn.d1_probability = data["d1_probability"] as double;
+        churn.d3_probability = data["d3_probability"] as double;
+        churn.d7_probability = data["d7_probability"] as double;
+        churn.d14_probability = data["d14_probability"] as double;
+        churn.d30_probability = data["d30_probability"] as double;
+        churn.probability_confidence = data["probability_confidence"] as String;
         insights.churn = churn;
-      }
-
-      if (data.containsKey("floor_price")) {
-        final  Map<String, dynamic> floorPrices = data["floor_price"];
-        if (floorPrices.containsKey("banner_configuration")) {
-          final bannerData = floorPrices['banner_configuration'] as Map<String, dynamic>;
-          insights.banner = AdInsight(AdType.Banner, (bannerData["floor_price"] as num).toDouble(), bannerData["ad_unit"]);
-        }
-        if (floorPrices.containsKey("interstitial_configuration")) {
-          final interstitialData = floorPrices['interstitial_configuration'] as Map<String, dynamic>;
-          insights.interstitial = AdInsight(AdType.Interstitial, (interstitialData["floor_price"] as num).toDouble(), interstitialData["ad_unit"]);
-        }
-        if (floorPrices.containsKey("rewarded_configuration")) {
-          final rewardedData = floorPrices['rewarded_configuration'] as Map<String, dynamic>;
-          insights.rewarded = AdInsight(AdType.Rewarded, (rewardedData["floor_price"] as num).toDouble(), rewardedData["ad_unit"]);
-        }
+      } else if (adapterResponseType == Insights.BANNER) {
+        double floor = (data["floor_price"] as num).toDouble();
+        String? recommendedAdUnit = data["ad_unit"];
+        int adOpportunityId = data["ad_opportunity_id"];
+        insights.banner = AdInsight(AdType.Banner, floor, recommendedAdUnit, adOpportunityId);
+      } else if (adapterResponseType == Insights.INTERSTITIAL) {
+        double floor = (data["floor_price"] as num).toDouble();
+        String? recommendedAdUnit = data["ad_unit"];
+        int adOpportunityId = data["ad_opportunity_id"];
+        insights.interstitial = AdInsight(AdType.Interstitial, floor, recommendedAdUnit, adOpportunityId);
+      } else if (adapterResponseType == Insights.REWARDED) {
+        double floor = (data["floor_price"] as num).toDouble();
+        String? recommendedAdUnit = data["ad_unit"];
+        int adOpportunityId = data["ad_opportunity_id"];
+        insights.rewarded = AdInsight(AdType.Rewarded, floor, recommendedAdUnit, adOpportunityId);
       }
 
       final callback = _callbackRegistry.remove(requestId);
@@ -126,60 +136,61 @@ class Nefta {
     });
   }
 
-  static void onExternalMediationRequestLoaded(AdType adType, AdInsight? insight, MaxAd? ad) {
-    String? recommendedAdUnitId;
-    double calculatedFloorPrice = 0;
-    if (insight != null) {
-      recommendedAdUnitId = insight.adUnit;
-      calculatedFloorPrice = insight.floorPrice;
+  static void onExternalMediationRequest(AdType adType, String requestedAdUnitId, [AdInsight? usedInsight, double customBidFloor=-1]) {
+    int adOpportunityId = -1;
+    if (usedInsight != null) {
+      adOpportunityId = usedInsight.adOpportunityId;
+      if (customBidFloor < 0) {
+        customBidFloor = usedInsight.floorPrice;
+      }
     }
-    String? adUnitId = null;
+    _methodChannel.invokeMapMethod('onExternalMediationRequest', {
+      "adType": adType.index,
+      "id": requestedAdUnitId,
+      "requestedAdUnitId": requestedAdUnitId,
+      "requestedFloorPrice": customBidFloor,
+      "adOpportunityId": adOpportunityId,
+    });
+  }
+
+  static void onExternalMediationRequestLoaded(MaxAd? ad) {
+    String? adUnitId;
     double revenue = 0;
-    String? precision = null;
+    String? precision;
     if (ad != null) {
       adUnitId = ad.adUnitId;
       revenue = ad.revenue;
       precision = ad.revenuePrecision;
     }
-    _methodChannel.invokeMapMethod('onExternalMediationRequestLoaded', {
-      "adType": adType.index,
-      "recommendedAdUnitId": recommendedAdUnitId,
-      "calculatedFloorPrice": calculatedFloorPrice,
-      "adUnitId": adUnitId,
-      "revenue": revenue,
-      "precision": precision
-    });
+
+    Nefta._onExternalMediationResponse(adUnitId!, revenue, precision, 1, null);
   }
 
-  static void onExternalMediationRequestFailed(AdType adType, AdInsight? insight, String adUnitId, MaxError error) {
-    String? recommendedAdUnitId;
-    double calculatedFloorPrice = 0;
-    if (insight != null) {
-      recommendedAdUnitId = insight.adUnit;
-      calculatedFloorPrice = insight.floorPrice;
-    }
-    int networkCode = 0;
-    _methodChannel.invokeMapMethod('onExternalMediationRequestFailed', {
-      "adType": adType.index,
-      "recommendedAdUnitId": recommendedAdUnitId,
-      "calculatedFloorPrice": calculatedFloorPrice,
-      "adUnitId": adUnitId,
-      "errorCode": error.code.value,
-      "networkErrorCode": networkCode
+  static void onExternalMediationRequestFailed(String adUnitId, MaxError error) {
+    int providerStatus = error.code.value;
+    Nefta._onExternalMediationResponse(adUnitId, -1, null, providerStatus == 204 ? 2 : 0, providerStatus.toString());
+  }
+
+  static void _onExternalMediationResponse(String id, double revenue, String? precision, int status, String? providerStatus) {
+    _methodChannel.invokeMapMethod('onExternalMediationResponse', {
+      "id": id,
+      "revenue": revenue,
+      "precision": precision,
+      "status": status,
+      "providerStatus": providerStatus
     });
   }
 
   static void onExternalMediationImpression(MaxAd? ad) {
+    _onImpression(false, ad);
+  }
+
+  static void onExternalMediationClick(MaxAd? ad) {
+    _onImpression(true, ad);
+  }
+
+  static void _onImpression(bool isClick, MaxAd? ad) {
     if (ad != null) {
-      int adType = AdType.Other.value;
-      String adFormat = ad.adFormat.toLowerCase();
-      if (adFormat == "banner" || adFormat == "leader" || adFormat == "leaderboard" || adFormat == "mrec") {
-        adType = AdType.Banner.value;
-      } else if (adFormat == "inter" || adFormat == "interstitial") {
-        adType = AdType.Interstitial.value;
-      } else if (adFormat == "reward" || adFormat == "rewarded") {
-        adType = AdType.Rewarded.value;
-      }
       Map<String, dynamic> data = {
         'ad_unit_id': ad.adUnitId,
         'placement_name': ad.placement,
@@ -200,10 +211,9 @@ class Nefta {
       data['waterfall'] = waterfall;
 
       _methodChannel.invokeMapMethod('onExternalMediationImpression', {
+        "isClick": isClick,
         "data": jsonEncode(data),
-        "adType": adType,
-        "revenue": ad.revenue,
-        "precision": ad.revenuePrecision
+        "id": ad.adUnitId
       });
     }
   }
