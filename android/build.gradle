@@ -19,6 +19,6 @@ android {
     }
 
     dependencies {
-        implementation 'com.nefta:nefta-sdk:4.4.0'
+        implementation 'com.nefta:nefta-sdk:4.4.2'
     }
 }

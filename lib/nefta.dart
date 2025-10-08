@@ -28,6 +28,11 @@ class Nefta {
   static final Completer<bool> _initializeCompleter = Completer<bool>();
 
   static const String extParamTestGroup = "test_group";
+  static const String extParamAttributionSource = "attribution_source";
+  static const String extParamAttributionCampaign = "attribution_campaign";
+  static const String extParamAttributionAdset = "attribution_adset";
+  static const String extParamAttributionCreative = "attribution_creative";
+  static const String extParamAttributionIncentivized = "attribution_incentivized";
 
   Nefta();
 

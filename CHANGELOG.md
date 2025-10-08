@@ -1,3 +1,6 @@
+## 4.4.2
+Android: Fixed potential crash in OnExternalMediationImpression
+
 ## 4.4.0
 Updated External Mediation Event interface for better tracking
 Added support for additional publisher parameters

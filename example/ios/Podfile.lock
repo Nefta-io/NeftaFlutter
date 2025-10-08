@@ -6,10 +6,10 @@ PODS:
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
-  - nefta_sdk_flutter (4.4.0):
+  - nefta_sdk_flutter (4.4.2):
     - Flutter
-    - NeftaSDK (= 4.4.0)
-  - NeftaSDK (4.4.0)
+    - NeftaSDK (= 4.4.2)
+  - NeftaSDK (4.4.2)
 
 DEPENDENCIES:
   - applovin_max (from `.symlinks/plugins/applovin_max/ios`)
@@ -37,8 +37,8 @@ SPEC CHECKSUMS:
   AppLovinSDK: 33fcc783889e2d522ae26886b31e5551246a5b2f
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
-  nefta_sdk_flutter: f8d93bcffdef88859269d1cfce150db9117c0f5a
-  NeftaSDK: ecc3befb9aa27f66f64db70a9b879316659d20c6
+  nefta_sdk_flutter: 176fac6869007b14cb398e1582f2852d27869173
+  NeftaSDK: 67eff7f5d7255b1a4072c071cf087c53c7f88f2f
 
 PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5
 

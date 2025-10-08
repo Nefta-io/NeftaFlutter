@@ -41,7 +41,6 @@ class MainState extends State<MainPage> {
 
   String _interstitialStatus = "Status";
   String _rewardedStatus = "Status";
-  bool _isBannerMounted = false;
 
   bool _isInterstitialLoadingOn = false;
   AdInsight? _dynamicInterstitialInsight;
